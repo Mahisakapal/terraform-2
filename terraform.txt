@@ -1,0 +1,976 @@
+Terraform : is infrastruher as a code IAAC 
+
+to install Terraform we just have go to side and dolwod exe and install for linux we have to  use get & url 
+
+wget https://releases.hashicorp.com/terraform/1.0.4/terraform_1.0.4_linux_amd64.zip            # u can check latest version 
+
+unzip terraform_1.0.4_linux_amd64.zip
+
+mv terraform  /usr/local/bin 
+
+now we can access this terraform  
+
+and this is our first file we are not follwoing good prictics in this but just to run we use 
+
+provider "aws" {
+  access_key = "AKIA26C5WJESIJCC775U"
+  secret_key = "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"
+  region "ap-south-1"                                                           # add this now it never ask in promt
+
+}
+
+resource "aws_instance" "my_server" {                       # my_server is a referruns name useding this we can access it 
+  ami           = "ami-04db49c0fb2215364"
+  instance_type = "t2.micro"
+  key_name = aws_key_pair.mykeyper.id                     # we are refering key 
+  security_groups = [aws_security_group.my-SG.name]       # we are refering SG here but it's groups mean more than
+                                                          # one so it refer like array so we use []
+# vpc_security_group_ids = [aws_security_group.my-SG.id]    # we can use this method also to attached sg 
+tags ={
+    name = "my-tag"
+}
+
+}
+
+terraform init              # this cmd will check your provider block code and donlowd binery as per your cloud 
+
+terraform plan              # to check what will privousn & what will be chang and update 
+
+but we never mantion rigone ant it's mandetory values so when we do terraform plan it ask as what should be the values
+it has to conserdor so it give you intractive promt 
+
+terraform apply                 # this will make a changes in out infra and provisen the new resource
+
+terraform validate              # it also work like terraform plan and giveb out what will be changes & what's wrong
+
+IMP : what is the diffrent between plan and apply 
+
+plan weil check what will be output if we apply it and give us the output infor on screen 
+
+apply will make changes in our infra as per what we chang in our codebasses 
+
+but to use validate cmd before plan to see syntex lavel error so the of cmd in terraform is
+
+init 
+validate
+plan
+apply
+destore 
+
+------------------------------------------------------------------------------------------------------------------
+how to create key for ec2 
+
+resource "aws_key_pair" "mykeyper"{
+  key_name = "myec2-key"
+  public_key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDTba2NAYH4LMRHWQRUBGyN/7K6ETcn4P2MWzspgtlW+n129IWIvTDkbyjjj8o3Rba8m3ybY6OeZqJljojrOmnwdtcuCYghQCLfRXUs95n57FolfFDOG5xpi8dbaeJMRlSjPK9YLAIAe+MbDbETYQDSbHkg/LeKUpx3K0YvjCrJkLgXqYn0UKMLEfkVXz7IGw2ffBCNmUZHjzg4/4gg4r6ZLdrRHMS3RC83mKiq35jO2o1LsmOsh3nePdMLw3LKBKHKOJ+qGZu1kDY2dXOiHWwLRK2v3O+ffPSS2OQzG5WeIBA0lWnahs7TBxpvoZ7uz0qTAN9R59vKyeKiVQMC+mBT Amardip@LS-LT-MUM-02031"
+
+} 
+
+and we can refer this key in any ec2 by use below method and we have add this in ce2 code_block 
+
+key_name = aws_key_pair.mykeyper.id             # here we het aws resource name and theyn our referuns name & can use
+                                                # any of this name, id 
+
+Note : if we want to attached key to alreday created ec2 by terraform it will distroy first and than wil create new one 
+
+so in abow case we pass all our details in code that is not good prictics so we will refer it by calling file
+
+so we use file module and we give  the name and path of that fileto use as un key 
+
+resource "aws_key_pair" "mykeyper"{
+  key_name = "myec2-key"
+  public_key = file("/.test.pub")
+}
+
+-----------
+
+now we are adding elastic ip to our enstans 
+
+resource "aws_eip" "myeip"{
+  vpc = true 
+  instance = aws_instance.myec2.id      # attaching to instance before 12 version use ${aws_instance.myec2.id} but not now
+}
+
+to do formating in your code use below cmd : 
+
+terraform fmt filename.tf 
+
+terraform fmt ec2-key.tf
+
+Note : if we have make a changes manuly means going on cconsle we did changes so in terraform state(tf.state) file it 
+never updated so it will revert that chnages and keep our infra as per the state file. IMP but incase of ec2 
+stop and start by console it will save stop or start state in tfstate file and it never make any chnages.
+
+----------------------------------------------------------------------------------------------------------------
+how to add SG in defualt VPC and attached it to your ec2 
+
+# here we createing SG in default VPC and opeing 3 port and adding tag 
+
+resource "aws_default_vpc" "default" {
+  tags = {
+    Name = "Default VPC"
+  }
+}
+resource "aws_security_group" "my-SG" {                 # creating SG and refering as my-SG
+  name        = "allow_ports"                           # giveing name 
+  description = "Allow inbound traffic"                 # just discription 
+  vpc_id      = aws_default_vpc.default.id              # refering vpc where should it create SG 
+  ingress {
+    description = "http from VPC"                       # just discription 
+    from_port   = 80                                    # incoming port     
+    to_port     = 80                                    # to port 
+    protocol    = "tcp"                                 # protocall can be http , udp , tcp     
+    cidr_blocks = ["0.0.0.0/0"]                         # for wich cidrt if we wanr in privite vpc just gove that vpc cidr 
+  }
+  ingress {
+    description = "tomcat port from VPC"
+    from_port   = 8080
+    to_port     = 8080
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]                     # this repreing as allow all internet trafice 
+  }
+  ingress {                         # inbond port 
+    description = "TLS from VPC"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  egress {                        # out bound port 
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  tags = {
+    Name = "allow_ports"
+  }
+}
+
+
+Note: thum role of refering any this is aws_resours_name.your_refernce_name.id & it should be without duble cote ""
+
+----------------------------------------------------------------------------------------------------------------
+adding user data 
+
+in side ec2 code block we can add user data 
+
+ user_data = <<EOF
+        #!/bin/bash
+        yum install httpd -y
+        echo "hey i am $(hostname -f)" > /var/www/html/index.html
+        service httpd start
+        chkconfig httpd on
+ EOF 
+
+
+user_data= file("/home/ec2-user/user_data.sh")
+
+or we can use file module and refer the script file by give path of file 
+
+====================================================================================================================================================
+
+*********
+IMP
+*********
+
+we can import manuly created resource 
+
+provider "aws"{
+  region = "ap-south-1"                                                           
+}
+
+resource "aws_instance" "myec2" {                           # it can be as per resource can be any resource like s3 
+
+}
+
+now we have to excute this cmd by copy istanst id (i-67642374bs56) u will get instance id from aws console
+
+terraform import aws_instance.myec2 i-67642374bs56
+
+now you can add below code like key and all requred code 
+
+  ami           = "ami-04db49c0fb2215364"                   # as per your exsting report 
+  instance_type = "t2.micro"                                # as per your exsting report
+  key_name = aws_key_pair.mykeyper.id  
+
+====================================================================================================================================================
+for s3 we can create a s3 bucket like belwo 
+
+resource "aws_s3_bucket" "my-bucket" {
+
+  bucket = "my-name-of-bucket-by-terra"                 # name if the bucket 
+  acl    = "private"
+  
+  tags = {
+    Name = "my buket"
+    env  = "dev"
+  }
+
+}
+
+now if we want to upload single file we can use below code 
+
+resource "aws_s3_bucket_object" "put-object"{
+  bucket = aws_s3_bucket.my-bucket.id                   # name of bucket we are reffring 
+  key = "ec2.tf"                                        # object name 
+  source = "code_base/ec2.tf"                             # give path of the object which we want to put in bucket 
+
+}
+
+till this it's ok but what if we want to put multipy file for each is meta argument  
+
+resource "aws_s3_bucket_object" "multfile-put"{
+    for_each = fileset(path.module, "**/*.txt")             # will do loop and serch for *.txt in child folder also 
+    bucket = aws_s3_bucket.my-bucket.id  
+    key = each.value                                        # loop for file name 
+    source = "${path.module}/${each.value}"                 #  loop folder and and loop for file also 
+    
+}
+
+copy files from curent folder only 
+
+resource "aws_s3_bucket_object" "multfile-put"{
+    for_each = fileset(path.module, "*.txt")             # will do loop and serch for *.txt in child folder also 
+    bucket = aws_s3_bucket.my-bucket.id  
+    key = each.value                                        # loop for file name 
+    source = "${path.module}/${each.value}"                 #  loop folder and and loop for file also 
+    
+}
+
+# copy defrent type of file 
+
+ resource "aws_s3_bucket_object" "multfile-put"{
+    for_each = fileset("${path.module}/files", "**" ) 
+    bucket = aws_s3_bucket.my-bucket.bucket  
+    content_type = "tf/txt"  
+    key = each.value
+    source = "${path.module}/files/${each.value}"
+    
+  }
+
+IMP : if we want to run the particule resous code we use trager than resous name.refercename  like below 
+
+terraform apply -target=aws_security_group.my_sg
+
+This will enable the versioning 
+versioning {
+   enabled = true 
+ }
+
+this code we use encypstion
+
+ server_side_encryption_configuration {             # encypstion 
+    rule {
+      apply_server_side_encryption_by_default {
+        sse_algorithm     = "AES256"
+      }
+    }
+ }
+
+
+out we use to get create resource details like url and all 
+
+output "fileset-results" {
+
+    value = aws_s3_bucket.mybuket.website_endpoint              # this will give s3 static website url 
+}
+
+=======================================================================================================================
+provider versioning
+=======================================================================================================================
+
+till yet we never mantion the provider version in our provider block 
+
+asume we have write a code 2  years a back and we want to run this code when we do terrafom init it will dawload latest 
+provider binery there is high chnages may be some fetherus are depricated. to over come such issue we use provider 
+version in your code to dolwod this version to run this code(file)
+
+provider "aws" {
+  region     = "ap-south-1"
+  version = "2.70"                      # after init it will donlowd this version 
+}
+
+if in same dir we have latest version of pluguns that also keep not going  to remove but 
+as per the this version we mantion it will donlowd also it will dolwod 
+
+if we never mantion any version bydifult it will consider latest version of provider 
+
+= (or no operator): Allows only one exact version number. Cannot be combined with other conditions.
+
+!=: Excludes an exact version number.
+like not rest anything 
+
+>, >=, <, <=: Comparisons against a specified version, allowing versions for which the comparison is true. "Greater-than" requests newer versions, and "less-than" requests older versions.
+like here it support Greater & equle to 
+
+~>: Allows only the rightmost version component to increment. For example, to allow new patch releases
+liek ~> 2.0             Than it will support from 2.0, 2.10, ... 2.90 not 3.00
+
+=======================================================================================================================
+Variables and Outputs 
+=======================================================================================================================
+
+we use Variables to reduce code and mange it effcativly 
+
+
+variable "cidr"{    
+    default = "0.0.0.0/0"
+}
+we can use this code in code_base fiel also but that is not good prictic
+and not looking good so 
+
+we are creating Variable file variable.tf we can give as per our requrment 
+
+in side that variable.tf file we have code like 
+
+variable "cidr"{    
+    default = "0.0.0.0/0"
+}
+
+and this we can refer in our sg.tf file means in our codebasse file like below
+
+var.cidr                # this code will check tf in same dir and if it found any variable
+                        # with same name we it can use it's value 
+
+it can gather Variables from diffrent, diffrent file but good thing to undstand the code 
+
+if we never mantion any values in variable block just we create empty variable tha 
+it will ask us while ruing code_base file 
+
+variable "cidr"{    
+    
+}
+
+use case this for passing tag as per bulid 
+
+or we can pass the variable while ruing terraform apply it as you enter value if your variable
+block is empty
+
+this  how we overwite the variable if it is decleard or not 
+terrafom apply -var="my_por=90"
+
+
+Loading Variable Values from CLI 
+terraform plan -var="instancetype=t2.small" 
+
+Note : Environment we are not using in realtime 
+
+
+Linux Environment commands
+
+export TF_VAR_instancetype t2.nano
+echo TF_VAR_instancetype
+
+Windows Environment commands
+
+export TF_VAR_instancetype="t2.nano"
+echo $TF_VAR
+
+----------------------------
+we can use terrafom.tfvars for variable also we don't need block in thsi file simply 
+we have give key =values in that file 
+
+mycidr = "10.10.0.120/32"
+myport = 8098
+
+--------
+if any thing from terrafom.tfvars we save as name than we have to pass the file name as below 
+
+Loading from custom tfvars file when we have custom variable file 
+
+custom.tfvars instancetype="t2.micro"       
+
+terraform plan -var-file="custom.tfvars"        # this i show we can use the custom file 
+
+if in thsi file also we never difind the values it's also ask you while ruing 
+
+what ever we pass in cmd will apply means cmd is 1 preparence,
+2 preparence tfvar file , 3 default varible whta we de, 4 it give privrity the code varable 
+
+===========================
+
+we can restrict the varable data type it can only support int , string boolen and more 
+as per our requriment 
+
+so we can difind type i variable.tf file 
+
+variable "myport"{
+    default = 80
+    type = number 
+}
+
+now for this varible it will only accept the number 
+
+IMP : object type support all data type can be number, string, char 
+
+Note : az is multipy values so we can use list ["value1", "value2"]
+
+variable "az"{
+       type = list(any)     # it support list and can be any data type 
+}
+
+and in code we can rerfer it as 
+
+= var.az[0]               # so insied verable what we defind it will take 1 value of that 
+
+same we have map funstion ther we map vales for key and call them by passing key value
+
+variable "type" {
+type  =  map
+  default = {
+     test1 = "t2.nano"
+    test2 = "t2.micro"
+     }
+
+= var.type["test2"]       # it will check test2 value and assing it to var 
+
+=========================================================================
+we use output verable to printer resource details like url of dns , or id 
+
+and we can define like belwo 
+
+output "print_ip_ec2" {                 # we can give any name to thsi 
+
+value = aws_instance.myec2.private_ip  # we have difind value = resource.refercename.instance_attribut
+     
+}
+
+like aws_instance support lot of Attribute
+
+arn , password data, public_dns, private_dns, public_ip, voluem_id, device_name
+
+=========================================================================
+local verable
+=========================================================================
+
+locals {
+common_tags = {
+CostGroup1 = "hexa"
+CostGroup2 = "dev"
+}
+
+tags = local.common_tags                      # this is how we can refer the local tags 
+
+this we can refer to filter resource by name 
+
+=========================================================================
+count
+=========================================================================
+
+we can use count option to 
+
+resource "aws_instance" "my_server" {                       # my_server is a referruns name useding this we can access it 
+  ami           = "ami-04db49c0fb2215364"
+  instance_type = "t2.micro"
+  count         = 2                             # now it will create 2 instance
+  tags = local.common_tags                      # this is how we can refer the local tags 
+
+====================
+count index 
+
+so it count the and as per index number it give name to your tags like below 
+
+resource "aws_instance" "my_server" {                       # my_server is a referruns name useding this we can access it 
+  ami           = "ami-04db49c0fb2215364"
+  instance_type = "t2.micro"
+  count         = 3                             # now it will create 3 instance
+  tags ={
+    Name = server.${count.index}                # we can any name inplace of server  
+  }
+
+  here tgas will looks like server.0, server.1 server.2 
+
+====================================================
+conditions 
+====================================================
+
+we can use conditions to check serter paramiter if conditions is true will run that 
+code will reun difrent block of the code 
+
+we set our verable.tf and verable.tfvars 
+
+verable.tf 
+-----
+varable "Environment"{}           # we just create mathend of varable 
+
+verable.tfvars
+-----
+Environment = true               # now that Environment varable we set value here 
+
+
+
+main code_base file (ec2.tf) 
+-----
+
+provider "aws"{
+  region = "ap-south-1"
+}
+
+resource "aws_instance" "dev" {
+ami = "ami-0cda377a1b884a1bc"
+instance_type = "t2.micro"
+count = var.environment == true ? 1 : 0         # it will check if environment = trun than create 1 instal or set cout =0 means nver create instatns 
+}
+resource "aws_instance" "stagging" {
+ami = "ami-0cda377a1b884a1bc"
+instance_type = "t2.nano"
+count = var.environment == true ? 1 : 0
+}
+                                      |---------This code will run if conditions false
+                                  |___|__________this code run if conditions true    
+count = var.environment == true ? 1 : 0         # it will check if environment = trun than
+ create 1 instal or set cout =0 means nver create instatns means it's check conditions
+
+---------------------------------------------------------------------------------------------------------------
+data sources :
+---------------------------------------------------------------------------------------------------------------
+
+use reterv data from our cloud provider meand get infromation from aws or azure 
+
+like we have vpc we want to create subnet in that vpc so we need that vpc refrence name or refrence id 
+
+and it start with data not like resource like below and we have to add this in our code 
+and we can fnd or filter our by tag like we have name tag or we can pass the id = id wich u can get from aws console
+if we want default jet set default = true than will use it 
+
+and to call it we use data intfrant of you 
+
+data.aws_vpc.refrence_name.id 
+
+data "aws_vpc" "canbe_any_name" {
+    default true                        # if you want to user default vpc 
+    filter{                             # this we use for filtering by tag or any other propertys 
+        name = tag:Name
+        values = ["my_vpc_tag"]         # it support a array but we give only one value 
+    }
+
+}
+
+-----------------------------------------
+now we are look for AMI to reterv it 
+
+data "aws_ami" "my_ami" {
+  executable_users = ["self"]
+  most_recent      = true                       # must have to work 
+  name_regex       = "^myami-\\d{3}"
+  owners           = ["self"]                   # must have to work 
+
+  filter {
+    name   = "name"
+    values = ["myami-*"]
+  }
+
+
+------------------------
+here is the compltet example of reterving ami
+
+provider "aws" { version = "~> 3.0" region = "ap-south-1"
+access_key = "AKIAV4DOXHKKZQFF66M4"
+secret_key = "+AlNHGZr+4WLtmrLaDonL5aA70vXAjDCu8vSA07v"
+}
+data "aws_ami" "my_ami" { 
+  most_recent = true 
+  owners = ["amazon"]
+
+
+filter {
+name = "name"
+values = ["amzn2-ami-hvm*"]
+}
+}
+
+resource "aws_instance" "web" { 
+  ami	= data.aws_ami.my_ami.id 
+  instance_type = "t2.micro"
+}
+
+==========================================================================================
+debugging in terrafom
+==========================================================================================
+
+
+Terraform has detailed logs that can be enabled by setting the TF_LOG environment variable
+ to any value.
+You can set TF_LOG to one of the log levels TRACE, DEBUG, INFO, WARN or ERROR to change 
+the verbosity of the logs.
+
+export TF_LOG=TRACE
+
+set TF_LOG=TRACE      # for Windows 
+
+now it will give more logs on console to undstanding whats going it help us in trbulshooting 
+
+see it's giving more logs and our console bferlog out, we can only perticuler number of logs
+
+there for we save this log in file or for futher trbulshooting also & syntex is below 
+
+export TF_LOG_PATH=/home/amrdip/ec2-tf.log        # we can give any path of for file 
+
+-------------------------------
+validate cmd will show you syntex lavel error This first cmd after init than plan , apply
+
+
+==========================================================================================
+function 
+==========================================================================================
+
+it's won't support user difind function 
+
+to check thie function we have use terrafom console and we can use this by type below cmd on yuor terminal 
+
+max (1,2,17)
+
+file function we alreday now we use to refer the key file & user data 
+
+---------------
+Element function
+---------------
+
+Element retrieves a single element from a list or array we are using this to achive this task 
+
+variable "tags" {
+type = list
+default = ["firstec2","secondec2"]        # here is our list  
+}
+resource "aws_key_pair" "my_key" {
+key_name = "login-key"
+public_key = file("${path.module}/terraform.pub")
+}
+resource "aws_instance" "stagging" {
+ami = "ami-0cda377a1b884a1bc"
+instance_type = "t2.nano"
+key_name = aws_key_pair.my_key.key_name
+count = 2
+tags = {
+Name = element(var.tags,count.index)        # by using element function to reterving list value
+
+}
+
+
+here is the example of index and list option 
+
+element(list, index)
+example:
+>element(["a", "b", "c"], 1)
+b
+
+
+we have formatdate,  timestamp, function also it give us time format 
+
+provider "aws" {
+version = "~> 3.0"
+region = "ap-south-1"
+access_key = "AKIAV4DOXHKKZQFF66M4"
+secret_key = "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"
+}
+locals {
+time = formatdate("DD MMM YYYY hh:mm ZZZ", timestamp())
+}
+output "timestamp" {
+value = local.time
+}
+
+
+==========================================================
+lookup()
+
+it is athucly look in value and if vale not set in function it will give error msg what set 
+
+lookup({name="ajay", age="24"}, "c", "no any value for c ")     # it check c is not difind so will show your difind msg
+
+it will output : no any value for c 
+
+------------------------
+lookup({name="ajay", age="24"}, "a", "no any value for c ")  # we a difind so it print 
+
+it will output : ajay
+
+
+===========================================================================================
+Terraform Taint
+===========================================================================================
+
+we have create some resource by useing terrafom and we make some changs in that resource by useing aws console
+next terrafom apply will revert back that changes so for this we use taint it will destoy and create it back 
+
+now we make a chanes by aws consle and that is not recorded in state file 
+
+in this case to tain resource we use below cmd 
+
+syntex:
+terraform taint aws_resours_name.your_refernce_name
+
+terraform taint aws_instance.myec2
+after this file till next apply in state file status of resource is tainted
+
+it will distroy and recrete not useful so we use import to achive what we plan 
+
+we have untaint to come out from tent 
+
+if we want to chnages the refercename only it should not distroy your resource
+we use state mv cmd syntex below 
+
+terrafom state mv aws_resours_name.resource_curent_refernamel aws_resours_name.resource_new_refernamel
+
+terrafom state mv aws_instance.myec2 aws_instance.mynewec2
+
+terrafom show         # cmd will show starte of that resource
+
+terraform state list    # will show all the resource list which is there in same dir 
+
+========================
+splat expresion 
+========================
+
+basicaly this * whilcard is splat expresion
+
+
+provider "aws" {
+  region     =  "ap-south-1"
+  access_key = "YOUR-ACCESS-KEY"
+  secret_key = "YOUR-SECRET-KEY"
+}
+resource "aws_iam_user" "lb" {
+  name = "iamuser.${count.index}"       # it's look like iamuser.0, iamuser.1, iamuser.2
+  count = 3             # we acrete 3 user 
+  path = "/system/"
+}
+output "iam_arns" {
+  value = aws_iam_user.lb[*].arn   # it rander all input form lb ima user & print 
+}
+
+we can get output in three places 
+after apply in console
+
+================================================================================================
+Terraform graphs
+================================================================================================
+
+to unstaed resource inter linked state we use graphs but it save in .dot form to covert it 
+we use Graphviz software 
+
+after terrafom init 
+
+terraform graph > graph.dot
+
+cat graph.dot | dot -Tsvg > graph.svg    # if we are on windows use type like below 
+
+type graph.dot | dot -Tsvg > graph.svg
+
+
+we can store terrafom plan for backup by passing -out=/path/filename
+
+terraform plan -out=myplan
+
+now it will sae state file in file name myplan and to create infrastruher from the bkp statefile 
+
+we have to use if my terrafom apply "filename"
+
+terrafom apply "myplan"
+
+==========================================================================================
+end to end 
+https://github.com/Mahisakapal/end-end-terraform-1?organization=Mahisakapal&organization=Mahisakapal
+
+terrafom
+https://github.com/Mahisakapal/terraform-2?organization=Mahisakapal&organization=Mahisakapal
+
+
+terrafom setteings 
+
+This is difined plugin means difinging provider veriosn and terrafom vernsion in provider is 
+deprecated now so we have defined plugin veriosn and terrafom version in side terrafom block 
+
+terraform {
+  required_version = "< 0.11"       # terrafom veriosn
+  required_providers {
+    aws = "~> 2.0"                  #  aws plugin version
+  }
+
+
+----------
+we can set refresh=false while so it not refersh all the componet but it is not recommended
+becouse it will never show you the manuly done in our infrastruher
+
+terrafom plan refresh=false
+
+if we want to sik particule resource only that also we can do 
+
+terrafom plan refresh=false -target="aws_instance.my_test_ce2"
+
+
+---------------------------------
+terrafom Provisioners :
+
+using Provisioners we can install and mage softer in our instanc
+
+if you want to install in same instance in instance block we can add Provisioner "local_exec"
+command ="ehco $hostname >> my-ec2-name.txt"
+
+if you want to connect any other ec2 and there we have to run the code we can use remote_exec
+
+
+and when we do remote_exec we have set connection block where we can defined the key, port ,
+
+
+onnection {                                         # this block is must to perform any task 
+     type = "ssh"
+     user = "ec2-user"
+     private_key = file("awskey.pem")
+     host = self.public_ip
+   }
+
+we can set the conditions by use when conditions do this and also on failure of somthing it should \
+be the so we can sue on_failure 
+
+==========================================================================================
+terrafom module
+
+we can refer alreday create terrafom code by passing module keyword and passing the path of that 
+file 
+
+
+module "ec2module" {
+  source = "../code_base/resource_refrence_name"
+  
+}
+
+but make sure for that file we alreday terrform plan or it will never work 
+
+also in same blacok we can chnage resource properties by declaring varable.tf
+
+inside your main code file u difned the we can difind the par call teh by var.refrence_name
+
+also we can use aws offical module
+
+but Don’t blindly copy past check the proper document for that module how many instance it will 
+going to create 
+
+aslo we have to give some required paramiter too 
+
+==========================================================================================
+terraform backend & locking state 
+==========================================================================================
+
+consider we have omre than 1 devpldre working on same same code the the changes at same time 
+than there are chnages to get carapte so now terrafom will lock the statefile
+
+not to get such issue we can use terrafom statefile unlcok is false but that is not recommended
+
+and if 2 difrent ppl using difrent satefile than its not a issue 
+
+for that we have two type of backedn storeg we can use remote backcend and local is defullat 
+
+many organation using s3 as backend to store there statefile for this we have add below block in
+ our code 
+
+terraform {
+  backend "s3" {
+    bucket = "mytest-remote-backends"
+    key    = "mystaefile.tfstate"           # it will save this name in s3 we can give preifix also
+    region = "us-east-1"
+    dynamodb_tablen = "my_terra_lock"
+  }
+}
+
+abow block not having locking defualt we have to enable it with dynomodb 
+
+steps to create and intigret daynomodb is as below
+
+go to dynomodb console give the table name you can give any but iam give (my_terra_lock)
+but priymiry key should same as lockID 
+
+and create a table 
+add below code in backend block , make sure the user which we are using for run terrafom code he 
+have the access for daynamodb read write 
+
+  dynamodb_tablen = "my_terra_lock"
+
+=============================================================================
+terrafom work sapace (actuly we are not using this but we have this option )
+=============================================================================
+
+we can create difrent difrent worksapce and we can use it difrent Environment like for dev we have
+diffrent environment and for staging we have defrent environment
+
+to check your curent environment you can use below cmd 
+
+terraform workspace show
+
+to get help
+terrafom worksapce -h 
+
+create a new worksapce
+terraform workspace new dev
+terraform workspace new prd
+
+list all workspace name 
+terraform workspace list
+
+to select the worksapce 
+terraform workspace select dev 
+
+to delete the worksapce
+terraform delete dev 
+
+by using thsi we can set all values as oer environment and we can call the inside the code_base
+like below 
+
+provider "aws" {
+  region     = "us-west-2"
+  access_key = "YOUR-ACCESS-KEY"
+  secret_key = "YOUR-SECRET-KEY"
+}
+
+resource "aws_instance" "myec2" {
+ ami = "ami-082b5a644766e0e6f"
+ instance_type = lookup(var.instance_type,terraform.workspace) # refering value by worksapce env 
+}
+
+variable "instance_type" {
+  type = "map"
+
+  default = {             # worksapce name we alreday create as same as we difined here and give the 
+    default = "t2.nano"         # values thsi values we are using by lookup function 
+    dev     = "t2.micro"        # if we are in prod worksapce it will values for that prod instance
+    prod     = "t2.large"       # it totaly depend where you are stading 
+  }
+}
+
+
+=============================================================================
+terrafom import
+=============================================================================
+
+we can import manuly in terrafrom created resource or resource which is created by
+aws web console or sdk, or by CLI
+
+in this we have to create one .tf file and like below there we have to atlist give that 
+resource a minimua details like name or ami and etc 
+
+after writing the file we ahev to excute the cmd as below 
+
+terrafom import aws_resoursName.refercename resource_ID if debend on resource for s3 it name 
+but for ec2 it id, we can get he resource_id (ec2-ID) from console 
+
+terraform import aws_instance.mytestec2 i-041886ebb7e9bd20
+
+
+providers.tf
+provider "aws" {
+  region = "us-west-1"
+}
+
+
+resource "aws_instance" "mytestec2" {
+  ami = "ami-bf5540df"
+  instance_type = "t2.micro"
+  vpc_security_group_ids = ["sg-6ae7d613", "sg-53370035"]
+  key_name = "remotepractical"
+  subnet_id = "subnet-9e3cfbc5"
+  tags {
+    Name = "manual"
+  }
+}
+
